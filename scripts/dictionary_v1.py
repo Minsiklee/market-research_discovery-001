@@ -73,9 +73,10 @@ MODELS = [
     ("Aviator",    "Lincoln", "Aviator",   r"\baviator\b"),
     ("Nautilus",   "Lincoln", "Nautilus",  r"\bnautilus\b"),
     # ---- §2-2 B EV ----
-    ("Model 3",    "Tesla", "Model 3", r"\bmodel\s?-?\s?3\b"),
-    ("Model Y",    "Tesla", "Model Y", r"\bmodel\s?-?\s?y\b"),
-    ("Model S",    "Tesla", "Model S", r"\bmodel\s?-?\s?s\b"),
+    ("Model 3",    "Tesla", "Model 3", r"\bmodel[\s-]*3\b"),
+    ("Model Y",    "Tesla", "Model Y", r"\bmodel[\s-]*y\b"),
+    # Model S 는 구분자를 강제한다. 전부 선택적이면 복수형 "models" 에 걸린다(30 → 2).
+    ("Model S",    "Tesla", "Model S", r"\bmodel[\s-]+s\b"),
     ("Polestar 2", "Polestar", "Polestar 2", r"\bpolestar\s?-?\s?2\b"),
     ("R1S",        "Rivian", "R1S", r"\br1s\b"),
     # ---- §2-2 B 기타 ----

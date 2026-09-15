@@ -33,10 +33,24 @@ import unicodedata
 from glob import glob
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from dictionary_v1 import MODELS, BRANDS, V2_PROBE  # noqa: E402
+def load_dictionary(version):
+    """사전 판을 불러와 (모델, 브랜드, 프로브, 판이름) 으로 돌려준다.
+    v1 은 평튜플, v2 는 네임드튜플(cs·obs 필드 추가)이라 여기서 모양을 맞춘다."""
+    if version == "v1":
+        import dictionary_v1 as d
+        models = [(c, mq, cn, p, False) for c, mq, cn, p in d.MODELS]
+        brands = [(b, p) for b, p in d.BRANDS]
+        probe = list(d.V2_PROBE)
+        name = "keyword_dictionary_v1 (2026-09-04) §1 · §2-2 US"
+    else:
+        import dictionary_v2 as d
+        models = [(x.code, x.marque, x.canonical, x.pattern, x.cs) for x in d.MODELS]
+        brands = [(x.brand, x.pattern) for x in d.BRANDS]
+        probe = list(d.PROBE)
+        name = "keyword_dictionary_v2 (1차 배치 역도출) §1 · §2-2 US + 신규 %d" % sum(1 for x in d.MODELS if x.obs)
+    return models, brands, probe, name
 
 SCHEMA_VERSION = "screen_v1"
-DICT_VERSION = "keyword_dictionary_v1 (2026-09-04) §1 · §2-2 US"
 SELECT_THRESHOLD = 3
 SIZE_BUCKETS = [(1, 1, "1"), (2, 3, "2-3"), (4, 10, "4-10"), (11, 30, "11-30"), (31, 10 ** 9, "31+")]
 
@@ -61,23 +75,25 @@ FLAG_ALTERNATIVES = {
 
 RX_FLAG = {k: re.compile(v, re.I) for k, v in FLAG_PATTERNS.items()}
 RX_FLAG_ALT = {k: [(a, re.compile(r"\b(?:%s)" % a, re.I)) for a in v] for k, v in FLAG_ALTERNATIVES.items()}
-RX_MODEL = [(c, mq, canon, re.compile(p, re.I)) for c, mq, canon, p in MODELS]
-RX_BRAND = [(b, re.compile(p, re.I)) for b, p in BRANDS]
-RX_V2 = [(n, re.compile(p, re.I)) for n, p in V2_PROBE]
-
 RX_WS = re.compile(r"\s+")
 RX_REDDIT_ID = re.compile(r"/comments/([a-z0-9]+)", re.I)
 
 
-def normalize(text: str) -> str:
-    """공백·하이픈·소문자 정규화. 매칭 전용 — 출력에는 쓰지 않는다."""
+def normalize_cs(text: str) -> str:
+    """공백·하이픈 정규화. 대소문자는 살린다 —
+    렉서스 ES·IS 가 영어 단어 es/is 와 갈리는 유일한 단서다."""
     if not text:
         return ""
     t = unicodedata.normalize("NFKC", text)
     t = t.replace("’", "'").replace("‘", "'")          # 곡선 어포스트로피
     t = t.replace("‐", "-").replace("‑", "-")          # 곡선 하이픈
     t = t.replace("–", "-").replace("—", "-")
-    return RX_WS.sub(" ", t).lower()
+    return RX_WS.sub(" ", t)
+
+
+def normalize(text: str) -> str:
+    """공백·하이픈·소문자 정규화. 매칭 전용 — 출력에는 쓰지 않는다."""
+    return normalize_cs(text).lower()
 
 
 def content_hash(text: str) -> str:
@@ -172,11 +188,11 @@ def decide_unit_rule(rows_of_file):
 
 # ---------------------------------------------------------------- 매칭
 
-def match_models(text_n: str):
-    """정규화된 텍스트에서 모델 출현을 센다. (코드→건수, 코드→마크, 코드→canonical)"""
+def match_models(text_n: str, text_cs: str):
+    """모델 출현을 센다. cs 패턴은 대소문자를 살린 텍스트에 건다."""
     counts, marque, canon = collections.Counter(), {}, {}
-    for code, mq, cn, rx in RX_MODEL:
-        n = len(rx.findall(text_n))
+    for code, mq, cn, rx, cs in RX_MODEL:
+        n = len(rx.findall(text_cs if cs else text_n))
         if n:
             counts[code] += n
             marque[code] = mq
@@ -202,8 +218,15 @@ def main():
     ap.add_argument("--threshold", type=int, default=SELECT_THRESHOLD)
     ap.add_argument("--scope", choices=("post", "thread"), default="post",
                     help="정규식·사전을 걸 범위. 본문(post)이 기본 — coding_guide 의 '본문' 용법을 따른다.")
+    ap.add_argument("--dict", choices=("v1", "v2"), default="v2", help="키워드 사전 판")
     args = ap.parse_args()
     os.makedirs(args.outdir, exist_ok=True)
+
+    global RX_MODEL, RX_BRAND, RX_PROBE, DICT_VERSION
+    models, brands, probe, DICT_VERSION = load_dictionary(args.dict)
+    RX_MODEL = [(c, mq, cn, re.compile(p, 0 if cs else re.I), cs) for c, mq, cn, p, cs in models]
+    RX_BRAND = [(b, re.compile(p, re.I)) for b, p in brands]
+    RX_PROBE = [(n, re.compile(p, re.I)) for n, p in probe]
 
     rows, files = load_records(args.indir)
     if not rows:
@@ -287,14 +310,15 @@ def main():
         n_comments = sum(1 for r in rs if r["_unit"] == "comment")
 
         # 본문 = 게시물 본문(댓글의 반대말). coding_guide §3-1·§3-9 의 용법.
-        post_n = normalize(post.get("raw_text") or "")
-        thread_n = normalize(" \n ".join(r.get("raw_text") or "" for r in rs))
+        post_cs = normalize_cs(post.get("raw_text") or "")
+        thread_cs = normalize_cs(" \n ".join(r.get("raw_text") or "" for r in rs))
+        post_n, thread_n = post_cs.lower(), thread_cs.lower()
         title_n = normalize(((post.get("raw_text") or "").strip().splitlines() or [""])[0])
 
-        def evaluate(text_n):
+        def evaluate(text_n, text_cs):
             fl = {k: bool(rx.search(text_n)) for k, rx in RX_FLAG.items()}
             fl["q"] = fl["q"] or title_n.endswith("?")
-            mc, mq_map, cn_map = match_models(text_n)
+            mc, mq_map, cn_map = match_models(text_n, text_cs)
             bc = match_brands(text_n)
             cmods = {cn_map[c] for c in mc}
             mmarq = {mq_map[c] for c in mc}
@@ -306,7 +330,7 @@ def main():
             return {"flags": fl, "mcounts": mc, "bcounts": bc, "marque": mq_map,
                     "score": b + (2 if p_strict else 0), "score_naive": b + (2 if p_naive else 0)}
 
-        ev_post, ev_thread = evaluate(post_n), evaluate(thread_n)
+        ev_post, ev_thread = evaluate(post_n, post_cs), evaluate(thread_n, thread_cs)
         ev = ev_post if args.scope == "post" else ev_thread
         ev_alt = ev_thread if args.scope == "post" else ev_post
         body_n = post_n if args.scope == "post" else thread_n
@@ -326,7 +350,7 @@ def main():
             model_thread_counts[c] += 1
         for b in bcounts:
             brand_thread_counts[b] += 1
-        for n, rx in RX_V2:
+        for n, rx in RX_PROBE:
             if rx.search(body_n):
                 v2_counts[n] += 1
 
@@ -390,6 +414,7 @@ def main():
         "schema_version": SCHEMA_VERSION,
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "dictionary_version": DICT_VERSION,
+        "dictionary_arg": args.dict,
         "select_threshold": args.threshold,
         "note_ranking": "순위를 매기지 않는다. 점수는 임계값 판정에만 쓴다.",
         "input_files": files,
@@ -424,7 +449,7 @@ def main():
         "dominated_counts": dict(dominated_counts.most_common()),
         "model_thread_counts": dict(model_thread_counts.most_common()),
         "brand_thread_counts": dict(brand_thread_counts.most_common()),
-        "dictionary_v2_candidates_not_scored": dict(v2_counts.most_common()),
+        "dictionary_next_probe_not_scored": dict(v2_counts.most_common()),
         "outputs": {
             "rows_csv": csv_path,
             "selected_threads": os.path.join(args.outdir, "selected_threads.txt"),
