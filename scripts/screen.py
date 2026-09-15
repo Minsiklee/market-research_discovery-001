@@ -233,6 +233,8 @@ def main():
         if len(v) > 1 and len({x["_tkey"] for x in v}) > 1)
 
     kept_by_thread = {}
+    # 배치는 중복 제거 전에 잡는다. 제거 뒤에 세면 교차 파일 중복(dup_of)이 사라진다.
+    thread_batches = {t: sorted({r["_batch"] for r in rs}) for t, rs in by_thread.items()}
     for tkey, rs in by_thread.items():
         if len({r["_file"] for r in rs}) > 1:
             dedup["threads_spanning_files"] += 1
@@ -265,7 +267,7 @@ def main():
 
     for tkey in sorted(kept_by_thread):
         rs = kept_by_thread[tkey]
-        batches = sorted({r["_batch"] for r in rs})
+        batches = thread_batches[tkey]
         primary, dup_of = batches[0], ";".join(batches[1:])
 
         # post / comment
