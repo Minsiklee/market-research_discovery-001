@@ -75,6 +75,17 @@ FLAG_ALTERNATIVES = {
 
 RX_FLAG = {k: re.compile(v, re.I) for k, v in FLAG_PATTERNS.items()}
 RX_FLAG_ALT = {k: [(a, re.compile(r"\b(?:%s)" % a, re.I)) for a in v] for k, v in FLAG_ALTERNATIVES.items()}
+# 검토 §2 A-2: 상업·시리즈 게시물. 중고차 수출 소싱 가이드 같은 연재물은
+# 소비자 담론이 아니고 차명이 수십 개 나와 관계 추출기를 헷갈리게 한다.
+COMMERCIAL_ALTERNATIVES = [
+    ("(n/n)",     r"\(\d+\s*/\s*\d+\)"),
+    ("deep dive", r"\bdeep dive\b"),
+    ("auction",   r"\bauction\b"),
+    ("export",    r"\bexport\b"),
+]
+RX_COMMERCIAL = re.compile("|".join(p for _, p in COMMERCIAL_ALTERNATIVES), re.I)
+RX_COMMERCIAL_ALT = [(n, re.compile(p, re.I)) for n, p in COMMERCIAL_ALTERNATIVES]
+
 RX_WS = re.compile(r"\s+")
 RX_REDDIT_ID = re.compile(r"/comments/([a-z0-9]+)", re.I)
 
@@ -285,6 +296,10 @@ def main():
     brand_thread_counts = collections.Counter()
     naive_flip = 0
     scope_flip = 0
+    commercial_alt_counts = collections.Counter()
+    genesis_focus_counts = collections.Counter()
+    top_partner_counts = collections.Counter()
+    n_commercial = 0
     score_hist_alt = collections.Counter()
     size_stats = collections.defaultdict(lambda: {"threads": 0, "selected": 0, "score_sum": 0})
 
@@ -376,14 +391,31 @@ def main():
             dominated = "true" if c.most_common(1)[0][1] / len(rs) > 0.5 else "false"
         dominated_counts[dominated] += 1
 
-        model_focus = ""
-        if mcounts:
-            model_focus = sorted(mcounts.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
+        # A-1: 노드 A 는 제네시스 모델이어야 한다(coding_guide §3-1). "본문 최다 모델"
+        # 하나로는 경쟁차가 초점으로 잡혀 모델별 할당이 어긋난다. 열을 둘로 나눈다.
+        marque = ev["marque"]
+        def _top(pred):
+            c = [(k, v) for k, v in mcounts.items() if pred(marque.get(k))]
+            return sorted(c, key=lambda kv: (-kv[1], kv[0]))[0][0] if c else ""
+        genesis_focus = _top(lambda mq: mq == "Genesis")
+        top_partner = _top(lambda mq: mq != "Genesis")
+        genesis_focus_counts[genesis_focus or "(없음)"] += 1
+        if top_partner:
+            top_partner_counts[top_partner] += 1
+
+        # A-2: 상업·시리즈 게시물은 표시하고 선별에서 뺀다. 점수 산식은 건드리지 않는다.
+        commercial = bool(RX_COMMERCIAL.search(post_n))
+        if commercial:
+            n_commercial += 1
+            for nm, rx in RX_COMMERCIAL_ALT:
+                if rx.search(post_n):
+                    commercial_alt_counts[nm] += 1
 
         out_rows.append({
             "thread_key": tkey,
             "batch": primary,
-            "model_focus": model_focus,
+            "genesis_focus": genesis_focus,
+            "top_partner": top_partner,
             "models": ";".join(sorted(mcounts, key=lambda c: (-mcounts[c], c))),
             "brands": ";".join(sorted(bcounts, key=lambda b: (-bcounts[b], b))),
             "n_rows": len(rs),
@@ -391,21 +423,26 @@ def main():
             "n_speakers": n_speakers,
             "screen_score": score,
             "flags": "+".join(k for k in ("cmp", "fp", "q", "deal", "qual") if flags[k]),
+            "commercial_series": "true" if commercial else "false",
             "dominated": dominated,
+            # 화자 해시가 없어 같은 사람의 발화를 구분할 수 없다. 소넷이 채운다(검토 §4).
+            "same_speaker_suspect": "",
             "dup_of": dup_of,
             "first_120_chars": post_n[:120],
         })
 
     # --- 출력: 순위를 매기지 않는다. thread_key 순으로만 쓴다 ---
-    cols = ["thread_key", "batch", "model_focus", "models", "brands", "n_rows", "n_comments",
-            "n_speakers", "screen_score", "flags", "dominated", "dup_of", "first_120_chars"]
+    cols = ["thread_key", "batch", "genesis_focus", "top_partner", "models", "brands",
+            "n_rows", "n_comments", "n_speakers", "screen_score", "flags", "commercial_series",
+            "dominated", "same_speaker_suspect", "dup_of", "first_120_chars"]
     csv_path = os.path.join(args.outdir, "screen_rows.csv")
     with open(csv_path, "w", encoding="utf-8", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=cols, quoting=csv.QUOTE_MINIMAL)
         w.writeheader()
         w.writerows(out_rows)
 
-    selected = [r for r in out_rows if r["screen_score"] >= args.threshold]
+    over_threshold = [r for r in out_rows if r["screen_score"] >= args.threshold]
+    selected = [r for r in over_threshold if r["commercial_series"] != "true"]
     with open(os.path.join(args.outdir, "selected_threads.txt"), "w", encoding="utf-8") as fh:
         for r in sorted(selected, key=lambda r: r["thread_key"]):
             fh.write(r["thread_key"] + "\n")
@@ -436,7 +473,17 @@ def main():
                   "mean_score": round(v["score_sum"] / v["threads"], 2) if v["threads"] else 0}
             for lab, v in sorted(size_stats.items(), key=lambda kv: [b[2] for b in SIZE_BUCKETS].index(kv[0]))
         },
+        "selected_over_threshold": len(over_threshold),
         "selected_count": len(selected),
+        "commercial_series": {
+            "rule": "본문에 (n/n)·deep dive·auction·export 가 있으면 true. 점수는 그대로 두고 선별에서만 뺀다.",
+            "threads_flagged": n_commercial,
+            "excluded_from_selection": len(over_threshold) - len(selected),
+            "alternative_hits": dict(commercial_alt_counts.most_common()),
+        },
+        "genesis_focus_distribution": dict(genesis_focus_counts.most_common()),
+        "top_partner_distribution": dict(top_partner_counts.most_common()),
+        "same_speaker_suspect": "열만 두고 값은 비운다. 화자 해시가 없어 코드가 판정할 수 없다 — 소넷이 채운다(검토 §4).",
         "selected_share": round(len(selected) / len(out_rows), 4) if out_rows else 0,
         "brand_rule": {
             "applied": "cross_marque — 매칭된 모델의 마크와 다른 브랜드만 '모델+브랜드'로 인정",

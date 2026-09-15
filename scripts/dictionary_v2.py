@@ -52,6 +52,7 @@ MODELS = [
     m("Santa Fe",   "Hyundai", "Santa Fe", r"\bsanta\s?fe\b"),
     m("Ioniq 5 N",  "Hyundai", "Ioniq 5",  r"\bioniq\s?-?\s?5\s?n\b"),
     m("Ioniq 5",    "Hyundai", "Ioniq 5",  r"\bioniq\s?-?\s?5\b"),
+    m("Ioniq 5 N",  "Hyundai", "Ioniq 5",  r"\bi5\s?-?n\b", obs=8),   # B-3: I5N 축약 표기
     m("Ioniq 6",    "Hyundai", "Ioniq 6",  r"\bioniq\s?-?\s?6\b"),
     m("Sonata",     "Hyundai", "Sonata",   r"\bsonata\b",  obs=12),
     m("Tucson",     "Hyundai", "Tucson",   r"\btucson\b",  obs=9),
@@ -70,7 +71,7 @@ MODELS = [
     m("Niro",       "Kia", "Niro",      r"\bniro\b",       obs=5),
 
     # ================= §2-2 B 독일 (v1 유지 + 역도출 추가) =================
-    m("M340i",     "BMW", "M340i",    r"\bm340i\b"),
+    m("3 Series",  "BMW", "3 Series", r"\bm340i\b"),
     m("3 Series",  "BMW", "3 Series", r"\b3\s?-?\s?series\b"),
     m("5 Series",  "BMW", "5 Series", r"\b5\s?-?\s?series\b"),
     m("7 Series",  "BMW", "7 Series", r"\b7\s?-?\s?series\b", obs=17),
@@ -82,14 +83,14 @@ MODELS = [
     m("i5",        "BMW", "i5",  r"\bi-?5\b"),
     m("i7",        "BMW", "i7",  r"\bi-?7\b", obs=4),
     m("iX",        "BMW", "iX",  r"\bix\b"),
-    m("M5",        "BMW", "M5",  r"\bm5\b", obs=6),
-    m("5시리즈 트림", "BMW", "5 Series", r"\b(?:530i|540i|550i|m550i)\b", obs=12),
-    m("3시리즈 트림", "BMW", "3 Series", r"\b(?:320i|328i|330i|335i)\b", obs=4),
+    m("5 Series",  "BMW", "5 Series", r"\bm5\b", obs=6),
+    m("5 Series",  "BMW", "5 Series", r"\b(?:530i|540i|550i|m550i)\b", obs=12),
+    m("3 Series",  "BMW", "3 Series", r"\b(?:320i|328i|330i|335i)\b", obs=4),
     m("C300",      "Mercedes", "C300",    r"\bc-?300\b"),
     m("E-Class",   "Mercedes", "E-Class", r"\be[-\s]?class\b"),
-    m("E-Class 트림", "Mercedes", "E-Class", r"\be-?(?:350|450|53|63)\b", obs=9),
+    m("E-Class",   "Mercedes", "E-Class", r"\be-?(?:350|450|53|63)\b", obs=9),
     m("S-Class",   "Mercedes", "S-Class", r"\bs[-\s]?class\b", obs=21),
-    m("S-Class 트림", "Mercedes", "S-Class", r"\bs-?(?:500|550|580|63)\b", obs=5),
+    m("S-Class",   "Mercedes", "S-Class", r"\bs-?(?:500|550|580|63)\b", obs=5),
     m("CLS",       "Mercedes", "CLS", r"\bcls\b", obs=4),
     m("GLC",       "Mercedes", "GLC", r"\bglc\b"),
     m("GLE",       "Mercedes", "GLE", r"\bgle\b"),
@@ -116,9 +117,9 @@ MODELS = [
     # ES·IS: 숫자 동반(v1) 또는 대문자 + Lexus 근접(v2). 맨 소문자는 영어 단어다(197스레드).
     m("ES",     "Lexus", "ES", r"\bes\s?-?\s?(?:250|300h?|330|350)\b"),
     m("IS",     "Lexus", "IS", r"\bis\s?-?\s?(?:200t?|250|300|350|500)\b"),
-    m("ES(대문자)", "Lexus", "ES",
+    m("ES",     "Lexus", "ES",
       r"(?:Lexus[^.?!]{0,60}\bES\b|\bES\b[^.?!]{0,60}Lexus)", cs=True, obs=4),
-    m("IS(대문자)", "Lexus", "IS",
+    m("IS",     "Lexus", "IS",
       r"(?:Lexus[^.?!]{0,60}\bIS\b|\bIS\b[^.?!]{0,60}Lexus)", cs=True, obs=4),
     m("RDX",  "Acura", "RDX", r"\brdx\b"),
     m("MDX",  "Acura", "MDX", r"\bmdx\b"),
@@ -224,6 +225,42 @@ BRANDS = [
     B("Land Rover",  r"\b(?:land\s?rover|range\s?rover)\b", 7),
     B("Maserati",    r"\bmaserati\b",    6),
     B("Dodge",       r"\bdodge\b",       None),
+    # --- 검토 B-3 상향 비교 대상. Bentley·Lucid 는 이미 있다. ---
+    B("Rolls-Royce", r"\brolls[-\s]?royce\b|\broyce\b", 10),
+]
+
+# ============================ 별지 2 §4 트림 레벨 (US) ============================
+# 검토 B-2: 트림 토큰(E450·M340i·M3)은 차명이 아니라 트림 레벨이다. 차명 매칭은
+# 기본 차명으로 접어 두고(위 MODELS), 트림 라벨 자체는 여기에 둔다.
+# 이 목록은 점수에 쓰지 않는다 — 열 19·20 attrs_prefill 용이다.
+T = namedtuple("T", "label marque pattern obs source")
+
+
+def t(label, marque, pattern, obs=None, source="review B-3"):
+    return T(label, marque, pattern, obs, source)
+
+
+TRIM_LEVELS = [
+    # 검토 B-3 이 지정한 것
+    t("Black",       "Genesis", r"\bblack\b",       obs=24),   # §3-3 Black 판별 5단계 대상
+    t("Ultimate",    "Genesis", r"\bultimate\b",    obs=14),   # 2017~20 G80 최상위 패키지
+    t("Performance", "Genesis", r"\bperformance\b", obs=17),   # GV60
+    t("Limited",     "Genesis", r"\blimited\b",     obs=2),
+    # 역도출 관측 — 승인 전까지 표시만 한다. 제네시스 US 트림 사다리의 나머지 두 칸이라
+    # 빼두면 트림 목록이 반쪽이 된다.
+    t("Prestige",    "Genesis", r"\bprestige\b",    obs=42, source="역도출 관측(미승인)"),
+    t("Advanced",    "Genesis", r"\badvanced\b",    obs=17, source="역도출 관측(미승인)"),
+    # 검토 B-2 가 트림 레벨로 보내라고 한 토큰들. 위 MODELS 에서는 기본 차명으로 접힌다.
+    t("M340i",   "BMW",      r"\bm340i\b",                  source="review B-2"),
+    t("M5",      "BMW",      r"\bm5\b",                     source="review B-2"),
+    t("5시리즈 i트림", "BMW",  r"\b(?:530i|540i|550i|m550i)\b", source="review B-2"),
+    t("3시리즈 i트림", "BMW",  r"\b(?:320i|328i|330i|335i)\b",  source="review B-2"),
+    t("E-Class 숫자트림", "Mercedes", r"\be-?(?:350|450|53|63)\b",  source="review B-2"),
+    t("S-Class 숫자트림", "Mercedes", r"\bs-?(?:500|550|580|63)\b", source="review B-2"),
+    # Wingback: 검토 B-3 은 "모델 변형"으로 분류했으나, 이 배치에서 G90 13 · GV60 12 ·
+    # GV70 8 · G80 7 · G70 5 · GV80 5 로 7개 모델에 고루 붙는다. 한 모델의 변형이 아니라
+    # 시트 사양이다. 모델로 넣으면 유령 차명이 생기므로 트림·사양 층에 둔다.
+    t("Wingback", "Genesis", r"\bwingback\b", obs=15, source="review B-3 (분류 변경)"),
 ]
 
 # 1차 배치 관측 0 — 채택하지 않고 다음 배치에서 다시 잰다.
