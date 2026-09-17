@@ -25,6 +25,21 @@ sealed/records ─▶ ① screen.py          정규식·사전만. 점수·중�
 > 이 저장소는 **public**이다. 원문·작성자 해시·본문 발췌·내부 방법론 문서는
 > 커밋하지 않는다. 자료는 세션 로컬 또는 비공개 보관소에 둔다.
 
+## ⓪-0 reddit_fetch.py · reddit_parse.py
+
+레딧 재수집기. **API 원응답을 먼저 `sealed/raw/` 에 보관하고** 그다음 파싱한다 —
+1차 배치의 계정명·`parent_id`·URL 소실은 전부 원응답을 버려서 생겼다.
+절차는 `RUNBOOK_reddit_recollect.md`, 오프라인 검증은 `test_reddit_pipeline.py`(44개 점검).
+
+```
+python3 scripts/test_reddit_pipeline.py                      # 네트워크 없이 돈다
+python3 scripts/reddit_fetch.py targets --ids work/targets_GV80.txt \
+        --raw sealed/raw/GV80 --loop
+python3 scripts/reddit_parse.py --raw sealed/raw/GV80 --model GV80 \
+        --window 202601_202608 --since 2026-01-01 --until 2026-08-31 \
+        --out work --sealed sealed/records
+```
+
 ## ⓪ cleanse_reddit_v1.py · run_cleanse_reddit.py · verify_reddit_batch.py
 
 수집기가 낸 schema 1.2 배치를 가이드 v2.2 §4·§5 규격(schema 1.6)으로 클렌징한다.
