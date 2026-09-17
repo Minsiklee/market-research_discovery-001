@@ -25,6 +25,19 @@ sealed/records ─▶ ① screen.py          정규식·사전만. 점수·중�
 > 이 저장소는 **public**이다. 원문·작성자 해시·본문 발췌·내부 방법론 문서는
 > 커밋하지 않는다. 자료는 세션 로컬 또는 비공개 보관소에 둔다.
 
+## ⓪ cleanse_reddit_v1.py · run_cleanse_reddit.py · verify_reddit_batch.py
+
+수집기가 낸 schema 1.2 배치를 가이드 v2.2 §4·§5 규격(schema 1.6)으로 클렌징한다.
+키 재부여 · 답글 계층 · 권역 고정 · 마스킹 · 중복 · 충돌 필터 · 전동화 근접 매칭 ·
+§3-3 manifest 재작성까지. `verify_reddit_batch.py` 가 §8 점검표를 자동 판정한다.
+
+```
+python3 scripts/run_cleanse_reddit.py <입력디렉터리> work sealed/records
+python3 scripts/verify_reddit_batch.py GV80 G70
+```
+
+복원 불가능한 결함은 고치지 않는다 — `known_nulls` 와 리포트에 사실대로 남긴다.
+
 ## ① screen.py
 
 스레드 단위로 묶어 선별 점수를 매긴다. 순위는 매기지 않는다 — 점수는 임계값(≥3)
