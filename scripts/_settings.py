@@ -8,7 +8,10 @@
 """
 import os
 
-KEYS = ("REDDIT_USER_AGENT", "REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET")
+KEYS = ("REDDIT_USER_AGENT", "REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET",
+        "REDDIT_USERNAME", "REDDIT_PASSWORD")
+# 값에 # 이 들어갈 수 없는 키 — 줄 끝 주석을 걷어낸다
+NO_HASH = ("REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "REDDIT_USERNAME")
 
 TEMPLATE = """\
 # 레딧 접속 정보 — 이 파일을 메모장으로 열어 값만 채우고 저장하세요.
@@ -18,12 +21,24 @@ TEMPLATE = """\
 #        이게 없으면 레딧이 차단합니다. 레딧 계정이 없으면 아무 이름이나 넣어도 됩니다.
 REDDIT_USER_AGENT = python:genesis-research:v1.0 (by /u/여기에_레딧아이디)
 
-# [선택] 있으면 4배 빨라집니다 (20~40분 -> 5~10분).
-#        https://www.reddit.com/prefs/apps 에서 create app -> script 로 만들고
-#        앱 이름 밑 짧은 문자열과 secret 옆 긴 문자열을 넣으세요.
-#        안 쓸 거면 이 두 줄은 그대로 두면 됩니다.
+# [선택] 있으면 4배 빨라집니다 (20~40분 -> 5~10분). 없어도 그냥 돌아갑니다.
+#
+#   https://www.reddit.com/prefs/apps 에서 create app -> 종류는 반드시 script
+#   만든 뒤 앱을 펼치면 두 문자열이 보입니다. 헷갈리기 쉬우니 잘 보세요.
+#
+#     앱 이름 바로 아래, "personal use script" 라는 글자 위의 짧은 문자열  -> CLIENT_ID
+#     "secret" 이라고 적힌 칸 옆의 긴 문자열                              -> CLIENT_SECRET
+#
+#   "personal use script" 라는 글자 자체를 넣으면 401 이 납니다.
+#   401 이 나도 수집은 계속됩니다 — 느려질 뿐입니다. 그때는 이 두 줄을 비우세요.
 REDDIT_CLIENT_ID =
 REDDIT_CLIENT_SECRET =
+
+# [선택의 선택] 위 둘로 401 이 계속 나면, 레딧 계정으로 인증하는 방법도 있습니다.
+#              2단계 인증(2FA)을 켠 계정은 이 방법이 안 됩니다.
+#              쓰지 않을 거면 두 줄 모두 비워 두세요.
+REDDIT_USERNAME =
+REDDIT_PASSWORD =
 """
 
 
@@ -53,7 +68,10 @@ def load(root=None):
         if not line or line.startswith("#") or "=" not in line:
             continue
         k, v = line.split("=", 1)
-        k, v = k.strip().upper(), v.strip().strip('"').strip("'")
+        k, v = k.strip().upper(), v.strip()
+        if k in NO_HASH and "#" in v:
+            v = v.split("#", 1)[0].strip()
+        v = v.strip('"').strip("'").strip()
         # 예시 문구를 그대로 둔 경우는 안 채운 것으로 본다
         if k in KEYS and v and "여기에_" not in v:
             vals[k] = v

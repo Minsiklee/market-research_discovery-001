@@ -144,9 +144,20 @@ REDDIT_CLIENT_SECRET =
 
 1. https://www.reddit.com/prefs/apps 접속 (레딧 로그인 필요)
 2. 맨 아래 `create another app...` 클릭
-3. 이름은 아무거나, 종류는 **script**, redirect uri 는 `http://localhost:8080`
-4. 만들고 나면 앱 이름 밑에 짧은 문자열(= client id), `secret` 옆에 긴 문자열이 보인다
+3. 이름은 아무거나, 종류는 **script**(반드시), redirect uri 는 `http://localhost:8080`
+4. 만든 뒤 앱을 펼치면 문자열 둘이 보인다. **헷갈리기 제일 쉬운 지점이다.**
+
+   ```
+   내앱이름
+   personal use script          <- 이 글자 바로 위의 짧은 문자열이 CLIENT_ID
+   abc123XYZ_-def                  (글자 "personal use script" 를 넣는 게 아니다)
+
+   secret   sEcReTsEcReTsEcReT   <- 이 긴 문자열이 CLIENT_SECRET
+   ```
+
 5. 그 둘을 `REDDIT_CLIENT_ID =` 와 `REDDIT_CLIENT_SECRET =` 뒤에 붙여 넣고 저장
+6. 메뉴 `1`(환경 진단)을 돌리면 **키가 맞는지 그 자리에서 시험해 준다.**
+   `[3] 정상` 이 나오면 된 것이다
 
 없어도 그냥 돌아간다. 시간만 더 걸린다.
 
@@ -236,6 +247,7 @@ sealed\raw\GV80\*.json                                 ← API 원응답. 버리
 | `[2] 연결 실패` | 사내망·VPN·방화벽 차단 | 집 와이파이나 휴대폰 핫스팟에서 시도 |
 | `HTTP 403` 이 반복 | 이름표 미설정 | 4단계 `$env:REDDIT_USER_AGENT` 다시 설정 |
 | `http_429` 가 계속 찍힘 | 레딧 속도 제한 | **그대로 두면 된다.** 스스로 느려지며 회복한다. 자격증명을 넣으면 거의 사라진다 |
+| `HTTP Error 401` | 자격증명이 거부됨 | 위 client id / secret 을 다시 확인. **급하면 그 두 줄을 비우면 된다** — 느릴 뿐 결과는 같다 |
 | `[5] 대상 목록 ❌` | `targets_GV80.txt` 위치 오류 | 폴더 안 `work` 폴더에 넣었는지 확인 |
 | 한글이 깨져 보임 | 콘솔 글꼴 | 내용은 정상이다. Windows Terminal 앱을 쓰면 안 깨진다 |
 

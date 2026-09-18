@@ -11,7 +11,8 @@ macOS · Windows · 리눅스에서 명령이 똑같다.
 
 중간에 끊겨도 같은 명령을 다시 치면 이어서 돈다. 이미 받은 스레드는 건너뛴다.
 """
-import argparse, json, os, subprocess, sys, shutil, urllib.request, urllib.error
+import argparse, json, os, subprocess, sys, shutil
+import urllib.request, urllib.error, urllib.parse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _console; _console.setup()
 import _settings
@@ -30,6 +31,28 @@ def run(args, title):
     if r.returncode:
         print("\n%s 위 단계에서 멈췄습니다. 메시지를 그대로 복사해 물어보시면 됩니다." % NO)
         sys.exit(r.returncode)
+
+
+def token_test(cid, csec, timeout=20):
+    """자격증명을 실제로 한 번 시험한다. 20분 돌린 뒤에 알면 늦다."""
+    import base64
+    ua = os.environ.get("REDDIT_USER_AGENT") or "recollect-doctor/1.0"
+    body = urllib.parse.urlencode({"grant_type": "client_credentials"}).encode()
+    req = urllib.request.Request("https://www.reddit.com/api/v1/access_token", data=body)
+    req.add_header("Authorization", "Basic " + base64.b64encode(
+        ("%s:%s" % (cid, csec)).encode()).decode())
+    req.add_header("User-Agent", ua)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            doc = json.load(r)
+        return (200, "") if doc.get("access_token") else (None, "토큰이 오지 않음")
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, e.read().decode("utf-8", "replace")[:120]
+        except Exception:
+            return e.code, e.reason
+    except Exception as e:
+        return None, str(e)[:100]
 
 
 def reachable(host):
@@ -73,7 +96,23 @@ def doctor(a):
     print("\n[3] 레딧 API 자격증명 (선택)")
     cid, csec = os.environ.get("REDDIT_CLIENT_ID"), os.environ.get("REDDIT_CLIENT_SECRET")
     if cid and csec:
-        print("%s 설정됨 — 분당 100회로 돕니다 (GV80 약 5~10분)" % OK)
+        code, detail = token_test(cid, csec)
+        if code == 200:
+            print("%s 정상 — 분당 100회로 돕니다 (GV80 약 5~10분)" % OK)
+        elif code == 401:
+            print("%s 레딧이 거부했습니다 (401)" % NO)
+            print("     client id 를 잘못 짚은 경우가 가장 흔합니다.")
+            print("     https://www.reddit.com/prefs/apps 에서 앱을 펼치면,")
+            print("     앱 이름 바로 아래 짧은 문자열이 client id,")
+            print("     secret 칸 옆 긴 문자열이 secret 입니다.")
+            print("     앱 종류가 script 가 아니어도 401 이 납니다.")
+            print("")
+            print("     ※ 이대로 둬도 수집은 됩니다 — 분당 10회로 느려질 뿐입니다.")
+            print("       빨리 시작하려면 settings.txt 의 그 두 줄을 비우세요.")
+        elif code is None:
+            print("%s 확인 못 했습니다 — %s" % (WARN, detail))
+        else:
+            print("%s 레딧 응답 HTTP %s — %s" % (WARN, code, detail))
     else:
         print("%s 없음 — 공개 페이지로 분당 10회 (GV80 약 20~40분)" % WARN)
         print("     그래도 돌아갑니다. 빠르게 하려면:")

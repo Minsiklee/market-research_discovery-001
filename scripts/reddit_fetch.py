@@ -66,25 +66,86 @@ class Limiter:
         self.backoff = max(0.0, self.backoff * 0.5)
 
 
+AUTH_HELP = """
+  자격증명이 거부됐습니다. 흔한 원인 넷입니다.
+
+  1) client id 를 잘못 짚었다 — 가장 흔합니다.
+     https://www.reddit.com/prefs/apps 에서 앱을 펼치면
+       앱 이름 바로 아래 · "personal use script" 글자 위   <- 이 짧은 문자열이 client id
+       secret 이라고 적힌 칸 옆                             <- 이 긴 문자열이 secret
+     "personal use script" 라는 글자 자체를 넣으면 안 됩니다.
+
+  2) 앱 종류가 script 가 아니다 — web app / installed app 은 이 방식이 안 됩니다.
+     지우고 script 로 다시 만드세요.
+
+  3) 값에 공백·따옴표·주석이 섞였다 — settings.txt 에서 = 뒤에 값만 남기세요.
+
+  4) 2단계 인증(2FA)을 켠 계정 — 아래 계정 방식을 쓸 때만 문제가 됩니다.
+
+  자격증명 없이도 그냥 돌아갑니다. 빨리 시작하려면
+  settings.txt 의 REDDIT_CLIENT_ID · REDDIT_CLIENT_SECRET 두 줄을 비우세요.
+  (분당 10회로 느려질 뿐, 결과물은 똑같습니다.)
+"""
+
+
 class Client:
     def __init__(self):
         self.token = None
         self.oauth = bool(CID and CSEC)
-        self.limiter = Limiter(100 if self.oauth else 10)
         self.stats = collections.Counter()
         if self.oauth:
             self._auth()
+        self.limiter = Limiter(100 if self.oauth else 10)
+
+    def _fallback(self, why):
+        """인증이 안 되면 죽지 말고 공개 페이지로 내려간다.
+
+        자격증명은 속도를 올리는 선택지일 뿐이다. 이것 때문에 수집 전체가
+        멈추면 안 된다 — 결과물은 어느 쪽이든 같다."""
+        print("\n[auth] %s" % why, file=sys.stderr)
+        print(AUTH_HELP, file=sys.stderr)
+        print("[auth] 공개 페이지 방식으로 계속합니다 (분당 10회).\n", file=sys.stderr)
+        self.oauth = False
+        self.token = None
 
     def _auth(self):
-        data = urllib.parse.urlencode({"grant_type": "client_credentials"}).encode()
-        req = urllib.request.Request("https://www.reddit.com/api/v1/access_token", data=data)
-        raw = ("%s:%s" % (CID, CSEC)).encode()
         import base64
-        req.add_header("Authorization", "Basic " + base64.b64encode(raw).decode())
+        user = os.environ.get("REDDIT_USERNAME")
+        pw = os.environ.get("REDDIT_PASSWORD")
+        if user and pw:                       # script 앱의 정식 방식
+            form = {"grant_type": "password", "username": user, "password": pw}
+            how = "계정 방식(password grant)"
+        else:                                 # 앱 전용 토큰
+            form = {"grant_type": "client_credentials"}
+            how = "앱 전용(client_credentials)"
+        req = urllib.request.Request("https://www.reddit.com/api/v1/access_token",
+                                     data=urllib.parse.urlencode(form).encode())
+        req.add_header("Authorization", "Basic " + base64.b64encode(
+            ("%s:%s" % (CID, CSEC)).encode()).decode())
         req.add_header("User-Agent", UA)
-        with urllib.request.urlopen(req, timeout=30) as r:
-            self.token = json.load(r)["access_token"]
-        print("[auth] OAuth 토큰 획득 — 분당 100회", file=sys.stderr)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                doc = json.load(r)
+            tok = doc.get("access_token")
+            if not tok:
+                return self._fallback("토큰이 오지 않았습니다 — 레딧 응답: %s"
+                                      % json.dumps(doc, ensure_ascii=False)[:200])
+            self.token = tok
+            print("[auth] OAuth 토큰 획득 (%s) — 분당 100회" % how, file=sys.stderr)
+        except urllib.error.HTTPError as e:
+            body = ""
+            try:
+                body = e.read().decode("utf-8", "replace")[:200]
+            except Exception:
+                pass
+            if e.code == 401:
+                self._fallback("HTTP 401 — 아이디/비밀키가 거부됐습니다. %s" % body)
+            elif e.code == 429:
+                self._fallback("HTTP 429 — 레딧이 지금 요청을 조이고 있습니다. %s" % body)
+            else:
+                self._fallback("HTTP %d — %s %s" % (e.code, e.reason, body))
+        except Exception as e:
+            self._fallback("인증 서버에 닿지 못했습니다 — %s" % str(e)[:150])
 
     def get(self, path, params=None, tries=6):
         """path 는 '/comments/abc123' 처럼 선행 슬래시를 포함한 경로."""
