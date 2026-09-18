@@ -93,6 +93,8 @@ class Client:
         self.token = None
         self.oauth = bool(CID and CSEC)
         self.stats = collections.Counter()
+        self.public_bases = ["https://www.reddit.com", "https://old.reddit.com"]
+        self._diag_shown = False
         if self.oauth:
             self._auth()
         self.limiter = Limiter(100 if self.oauth else 10)
@@ -147,23 +149,72 @@ class Client:
         except Exception as e:
             self._fallback("인증 서버에 닿지 못했습니다 — %s" % str(e)[:150])
 
+    def _diagnose(self, body, url, ctype=""):
+        """JSON 이 아닌 것이 왔을 때, 무엇이 왔는지 사람이 읽을 수 있게 남긴다.
+
+        여기서 실패하면 원인이 셋 중 하나인데 눈으로 봐야 갈린다 —
+        레딧의 차단·속도제한 페이지 / 사내 프록시의 안내 페이지 / 로그인 요구."""
+        head = body[:800].decode("utf-8", "replace")
+        low = head.lower()
+        if "whoa there" in low or "too many requests" in low:
+            why = "레딧이 속도 제한 페이지를 돌려줬습니다 (익명 접속 차단)."
+        elif "log in" in low and "reddit" in low:
+            why = "레딧이 로그인을 요구하는 페이지를 돌려줬습니다."
+        elif "<!doctype html" in low or "<html" in low:
+            why = "JSON 이 아니라 HTML 페이지가 왔습니다 (차단·안내 페이지로 보입니다)."
+        else:
+            why = "JSON 이 아닌 응답이 왔습니다 (Content-Type: %s)." % (ctype or "없음")
+        try:
+            d = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "work")
+            os.makedirs(d, exist_ok=True)
+            with open(os.path.join(d, "_last_response.txt"), "w", encoding="utf-8") as f:
+                f.write("요청한 주소: %s\n\n--- 받은 내용 앞부분 ---\n%s\n"
+                        % (url, body[:4000].decode("utf-8", "replace")))
+            where = os.path.join(d, "_last_response.txt")
+        except Exception:
+            where = "(저장 실패)"
+        if not self._diag_shown:
+            self._diag_shown = True
+            print("\n[진단] %s" % why, file=sys.stderr)
+            print("[진단] 받은 내용 앞부분:", file=sys.stderr)
+            for line in head.splitlines()[:6]:
+                print("       %s" % line[:110], file=sys.stderr)
+            print("[진단] 전체는 여기에 저장했습니다: %s" % where, file=sys.stderr)
+            print("[진단] 이 파일을 그대로 보내 주시면 원인을 짚어 드릴 수 있습니다.\n",
+                  file=sys.stderr)
+        return why
+
     def get(self, path, params=None, tries=6):
         """path 는 '/comments/abc123' 처럼 선행 슬래시를 포함한 경로."""
         params = dict(params or {})
         params.setdefault("raw_json", 1)
-        base = "https://oauth.reddit.com" if self.oauth else "https://old.reddit.com"
-        suffix = "" if self.oauth else ".json"
-        url = base + path + suffix + "?" + urllib.parse.urlencode(params)
+        if self.oauth:
+            bases = [("https://oauth.reddit.com", "")]
+        else:
+            # 레딧이 익명 접속에 호스트마다 다르게 군다. 되는 쪽을 찾아 붙든다.
+            bases = [(b, ".json") for b in self.public_bases]
         for attempt in range(tries):
+            base, suffix = bases[attempt % len(bases)]
+            url = base + path + suffix + "?" + urllib.parse.urlencode(params)
             self.limiter.wait()
             req = urllib.request.Request(url)
             req.add_header("User-Agent", UA)
+            req.add_header("Accept", "application/json")
             if self.oauth:
                 req.add_header("Authorization", "Bearer " + self.token)
             try:
                 with urllib.request.urlopen(req, timeout=60) as r:
                     body = r.read()
+                    ctype = (r.headers.get("Content-Type") or "").lower()
+                if body.strip()[:1] not in (b"{", b"["):
+                    self.stats["notjson"] += 1
+                    self._diagnose(body, url, ctype)
+                    self.limiter.penalise()
+                    continue
                 self.stats["ok"] += 1
+                if not self.oauth and self.public_bases[0] != base:
+                    self.public_bases.remove(base)
+                    self.public_bases.insert(0, base)      # 되는 호스트를 앞으로
                 self.limiter.relax()
                 return json.loads(body.decode("utf-8"))
             except urllib.error.HTTPError as e:

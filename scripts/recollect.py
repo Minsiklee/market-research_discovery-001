@@ -208,6 +208,61 @@ def g70(a):
     print("attempted_searches 칸에 옮겨 적으세요 — 1차 배치에서 비어 있던 칸입니다.")
 
 
+def probe(a):
+    """한 건만 받아 보고 무엇이 오는지 그대로 보여 준다.
+
+    20분 돌린 뒤에 원인을 찾는 대신, 10초 만에 원인을 눈으로 본다."""
+    tg = os.path.join(ROOT, "work", "targets_GV80.txt")
+    tid = "1q1rwza"
+    if os.path.exists(tg):
+        for line in open(tg, encoding="utf-8"):
+            line = line.strip()
+            if line and not line.startswith("#"):
+                tid = line.split()[0]
+                break
+    ua = os.environ.get("REDDIT_USER_AGENT") or "recollect-probe/1.0"
+    print("레딧 응답 확인 — 글 1건만 받아 봅니다")
+    print("=" * 58)
+    print("  이름표(User-Agent): %s" % ua)
+    saved = None
+    for host in ("https://www.reddit.com", "https://old.reddit.com"):
+        url = "%s/comments/%s.json?limit=5&raw_json=1" % (host, tid)
+        print("\n  %s" % url)
+        req = urllib.request.Request(url)
+        req.add_header("User-Agent", ua)
+        req.add_header("Accept", "application/json")
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                body, code = r.read(), r.status
+                ctype = r.headers.get("Content-Type") or "(없음)"
+        except urllib.error.HTTPError as e:
+            body, code = (e.read() if hasattr(e, "read") else b""), e.code
+            ctype = (e.headers.get("Content-Type") if e.headers else "") or "(없음)"
+        except Exception as e:
+            print("%s 연결 실패 — %s" % (NO, str(e)[:120]))
+            continue
+        head = body[:400].decode("utf-8", "replace")
+        isjson = body.strip()[:1] in (b"{", b"[")
+        print("     HTTP %s | Content-Type: %s | %d바이트" % (code, ctype, len(body)))
+        if isjson:
+            print("%s JSON 이 왔습니다 — 이 호스트로 수집할 수 있습니다." % OK)
+        else:
+            print("%s JSON 이 아닙니다. 받은 내용 앞부분:" % NO)
+            for line in head.splitlines()[:6]:
+                if line.strip():
+                    print("       %s" % line.strip()[:104])
+            saved = os.path.join(ROOT, "work", "_last_response.txt")
+            os.makedirs(os.path.dirname(saved), exist_ok=True)
+            with open(saved, "w", encoding="utf-8") as f:
+                f.write("요청한 주소: %s\nHTTP %s\nContent-Type: %s\n\n%s\n"
+                        % (url, code, ctype, body[:4000].decode("utf-8", "replace")))
+    print("\n" + "=" * 58)
+    if saved:
+        print("받은 내용을 저장했습니다: %s" % saved)
+        print("이 파일을 그대로 보내 주시면 원인을 짚어 드리겠습니다.")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -215,6 +270,7 @@ def main():
     sp.add_parser("doctor", help="환경 진단 — 먼저 이것부터").set_defaults(func=doctor)
     sp.add_parser("gv80", help="GV80 수집 → 파싱 → 검증").set_defaults(func=gv80)
     sp.add_parser("g70", help="G70 탐색 → 수집 → 파싱 → 검증").set_defaults(func=g70)
+    sp.add_parser("probe", help="한 건만 받아 보고 무엇이 오는지 확인").set_defaults(func=probe)
     a = ap.parse_args()
     sys.exit(a.func(a) or 0)
 
