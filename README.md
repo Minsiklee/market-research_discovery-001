@@ -26,7 +26,8 @@ sealed/records ─▶ ① screen.py          정규식·사전만. 점수·중�
 > 커밋하지 않는다. 자료는 세션 로컬 또는 비공개 보관소에 둔다.
 
 > 윈도우에서 처음 돌린다면 `GETTING_STARTED_windows.md` 부터 본다.
-> 파이썬 설치·ZIP 내려받기·PowerShell 열기까지 그림 없이 따라 할 수 있게 적었다.
+> 터미널이 막힌 환경이면 **`START_HERE.py` 를 더블클릭**하면 메뉴가 뜬다 —
+> 명령을 칠 일이 없다. 접속 정보는 `settings.txt` 에 메모장으로 적는다.
 
 ## ⓪-0 recollect.py — 재수집 진입점
 

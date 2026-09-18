@@ -14,6 +14,7 @@ macOS · Windows · 리눅스에서 명령이 똑같다.
 import argparse, json, os, subprocess, sys, shutil, urllib.request, urllib.error
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _console; _console.setup()
+import _settings
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SC = os.path.join(ROOT, "scripts")
@@ -44,6 +45,7 @@ def reachable(host):
 
 
 def doctor(a):
+    sp, svals = _settings.ensure(ROOT)[0], _settings.load(ROOT)[1]
     print("레딧 재수집 환경 진단\n" + "=" * 58)
     bad = []
     for d in ("work", "sealed/records", "sealed/raw"):
@@ -76,16 +78,22 @@ def doctor(a):
         print("%s 없음 — 공개 페이지로 분당 10회 (GV80 약 20~40분)" % WARN)
         print("     그래도 돌아갑니다. 빠르게 하려면:")
         print("     https://www.reddit.com/prefs/apps → create app → script 선택")
-        print("     → 나온 값 둘을 REDDIT_CLIENT_ID · REDDIT_CLIENT_SECRET 로 설정")
+        print("     → 나온 값 둘을 아래 파일에 적으세요")
+        print("       %s" % sp)
 
     print("\n[4] User-Agent")
     ua = os.environ.get("REDDIT_USER_AGENT")
     if ua and "set REDDIT_USER_AGENT" not in ua:
         print("%s %s" % (OK, ua))
+        if "REDDIT_USER_AGENT" in svals:
+            print("     (settings.txt 에서 읽었습니다)")
     else:
         print("%s 없음 — 레딧이 기본 UA를 차단합니다. 반드시 설정하세요." % NO)
-        print('     macOS/리눅스:  export REDDIT_USER_AGENT="python:genesis-research:v1.0 (by /u/내계정)"')
-        print('     Windows(PowerShell):  $env:REDDIT_USER_AGENT="python:genesis-research:v1.0 (by /u/내계정)"')
+        print("     가장 쉬운 길 — 아래 파일을 메모장으로 열어 REDDIT_USER_AGENT 줄을 채웁니다")
+        print("       %s" % sp)
+        print("     (터미널을 쓸 수 있다면)")
+        print('       cmd:         set REDDIT_USER_AGENT=python:genesis-research:v1.0 (by /u/내계정)')
+        print('       PowerShell:  $env:REDDIT_USER_AGENT="python:genesis-research:v1.0 (by /u/내계정)"')
         bad.append("ua")
 
     print("\n[5] 수집 대상 목록")

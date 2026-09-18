@@ -30,6 +30,7 @@ import argparse, json, os, sys, time, hashlib, collections, datetime, urllib.par
 import urllib.request, urllib.error
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _console; _console.setup()
+import _settings; _settings.load()
 
 UA = os.environ.get("REDDIT_USER_AGENT",
                     "python:genesis-discourse-research:v1.0 (contact: set REDDIT_USER_AGENT)")

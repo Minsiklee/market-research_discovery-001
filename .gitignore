@@ -11,3 +11,6 @@ work/
 __pycache__/
 *.pyc
 .DS_Store
+
+# 레딧 접속 정보 — 개인 키가 들어간다
+settings.txt
