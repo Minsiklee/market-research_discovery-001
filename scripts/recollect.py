@@ -12,12 +12,14 @@ macOS · Windows · 리눅스에서 명령이 똑같다.
 중간에 끊겨도 같은 명령을 다시 치면 이어서 돈다. 이미 받은 스레드는 건너뛴다.
 """
 import argparse, json, os, subprocess, sys, shutil, urllib.request, urllib.error
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _console; _console.setup()
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SC = os.path.join(ROOT, "scripts")
 WINDOW, SINCE, UNTIL = "202601_202608", "2026-01-01", "2026-08-31"
 
-OK, NO, WARN = "  ✅", "  ❌", "  ⚠️ "
+OK, NO, WARN = _console.marks()
 
 
 def run(args, title):
@@ -44,6 +46,8 @@ def reachable(host):
 def doctor(a):
     print("레딧 재수집 환경 진단\n" + "=" * 58)
     bad = []
+    for d in ("work", "sealed/records", "sealed/raw"):
+        os.makedirs(os.path.join(ROOT, d), exist_ok=True)
 
     v = sys.version_info
     print("\n[1] 파이썬")
@@ -91,15 +95,13 @@ def doctor(a):
         print("%s work/targets_GV80.txt — 글 %d개" % (OK, n))
     else:
         print("%s work/targets_GV80.txt 가 없습니다" % NO)
-        print("     받으신 targets_GV80.txt 를 work/ 폴더에 넣거나,")
+        print("     받으신 targets_GV80.txt 를 %s 에 넣거나," % os.path.join(ROOT, "work"))
         print("     1차 배치 sealed 파일이 있으면 아래로 다시 만듭니다:")
         print("       python3 scripts/make_targets.py --sealed <sealed_...GV80.jsonl>")
         bad.append("targets")
 
     print("\n[6] 폴더")
     for d in ("work", "sealed/records", "sealed/raw"):
-        p = os.path.join(ROOT, d)
-        os.makedirs(p, exist_ok=True)
         print("%s %s/" % (OK, d))
     free = shutil.disk_usage(ROOT).free / 1e9
     print("%s 남은 디스크 %.1f GB (원응답 보관에 약 0.5 GB 필요)" % (OK if free > 1 else WARN, free))

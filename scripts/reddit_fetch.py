@@ -28,6 +28,8 @@ raw 를 남겨두면 스키마가 바뀌어도, 해시 규칙이 바뀌어도, �
 """
 import argparse, json, os, sys, time, hashlib, collections, datetime, urllib.parse
 import urllib.request, urllib.error
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _console; _console.setup()
 
 UA = os.environ.get("REDDIT_USER_AGENT",
                     "python:genesis-discourse-research:v1.0 (contact: set REDDIT_USER_AGENT)")

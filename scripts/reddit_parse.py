@@ -21,6 +21,7 @@ reddit_fetch.py 가 남긴 raw/{글id}.json 만 읽는다. 네트워크를 타�
 """
 import argparse, json, os, re, sys, collections, datetime, hashlib
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _console; _console.setup()
 from cleanse_reddit_v1 import (normalize, mask, sha, BOT, COMMERCIAL, SPONSOR_DECL,
                                BMW7, NONCAR, GENESIS, SCHEMA_VERSION)
 import dictionary_v2 as D

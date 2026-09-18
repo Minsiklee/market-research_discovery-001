@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 """납품 전 점검표 (가이드 §8) 자동 판정."""
 import json, sys, re, collections, statistics, unicodedata, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _console; _console.setup()
 ZW=re.compile(r'[​-‏  ﻿ ]')
 def load(p): return [json.loads(l) for l in open(p,encoding='utf-8') if l.strip()]
 

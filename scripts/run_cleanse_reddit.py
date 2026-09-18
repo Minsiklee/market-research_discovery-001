@@ -3,6 +3,7 @@
 """GV80·G70 레딧 배치 클렌징 실행 + §3-3 manifest 재작성."""
 import json, sys, os, hashlib, collections, re, datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _console; _console.setup()
 from cleanse_reddit_v1 import run, normalize, sha, RULE_VERSION, SCHEMA_VERSION
 
 IN     = sys.argv[1]

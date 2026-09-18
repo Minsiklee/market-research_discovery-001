@@ -8,6 +8,8 @@ work/targets_*.txt 는 저장소에 올리지 않으므로(공개 저장소), �
     python3 scripts/make_targets.py --sealed sealed_reddit-US-202601-202608-GV80.jsonl
 """
 import argparse, json, os, re, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _console; _console.setup()
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--sealed", required=True, help="1차 배치의 sealed_*.jsonl")

@@ -6,6 +6,8 @@
 하나씩 되짚는다. 수집기를 열린 네트워크로 옮기기 전에 여기서 먼저 통과시킨다.
 """
 import json, os, re, subprocess, sys, tempfile, shutil, time, datetime
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _console; _console.setup()
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 T0 = datetime.datetime(2026, 3, 1, tzinfo=datetime.timezone.utc).timestamp()
@@ -53,31 +55,31 @@ def build(raw_dir):
             "Please take the time to flair your post accordingly. I am a bot.", 300)],
         more=["c6"], num_comments=6,
         extra_things=[cm("c6", "t1_c1", "dave_lease", "Lease numbers on the GV80 are rough right now.", 360)])
-    json.dump(a, open(os.path.join(raw_dir, "aaa111.json"), "w"))
+    json.dump(a, open(os.path.join(raw_dir, "aaa111.json"), "w", encoding="utf-8"))
 
     # B. BMW 7시리즈 섀시코드 오염 — genesis 무언급
     b = thread("bbb222", "AiCarArt", "What if Alpina made a G70 B7",
                "Rendered this 7 series on air suspension, xDrive drivetrain.", "render_guy",
                [cm("d1", "t3_bbb222", "bmwfan", "That G70 B7 front end is wild.", 60)])
-    json.dump(b, open(os.path.join(raw_dir, "bbb222.json"), "w"))
+    json.dump(b, open(os.path.join(raw_dir, "bbb222.json"), "w", encoding="utf-8"))
 
     # C. 비자동차 모델코드 충돌
     c = thread("ccc333", "motorola", "What stylus for Tab G70 LTE",
                "I bought the motorola g70 lte two years ago without any stylus.", "tabuser",
                [cm("e1", "t3_ccc333", "helper", "Any capacitive stylus works fine.", 60)])
-    json.dump(c, open(os.path.join(raw_dir, "ccc333.json"), "w"))
+    json.dump(c, open(os.path.join(raw_dir, "ccc333.json"), "w", encoding="utf-8"))
 
     # D. 본문 20자 미만 (§2 제외)
     d = thread("ddd444", "GenesisMotors", "GV80", "", "shortposter",
                [cm("f1", "t3_ddd444", "someone", "Nice car, congrats on the GV80.", 60)])
-    json.dump(d, open(os.path.join(raw_dir, "ddd444.json"), "w"))
+    json.dump(d, open(os.path.join(raw_dir, "ddd444.json"), "w", encoding="utf-8"))
 
     # E. 구간 밖 (2025-11 게시)
     e = thread("eee555", "GenesisMotors", "Old GV80 thread from last year",
                "This one is outside the collection window entirely.", "olduser",
                [cm("g1", "t3_eee555", "x", "Still a great GV80 deal.", 60)],
                created=datetime.datetime(2025, 11, 1, tzinfo=datetime.timezone.utc).timestamp())
-    json.dump(e, open(os.path.join(raw_dir, "eee555.json"), "w"))
+    json.dump(e, open(os.path.join(raw_dir, "eee555.json"), "w", encoding="utf-8"))
 
 
 def main():
