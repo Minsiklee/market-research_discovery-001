@@ -1,5 +1,66 @@
 # 레딧 재수집 런북 — GV80 먼저, G70 나중
 
+## 빠른 시작 — 명령 세 줄
+
+터미널에 익숙하지 않아도 된다. **셸 문법을 타지 않으므로 macOS·Windows·리눅스에서 명령이 똑같다.**
+추가로 설치할 패키지도 없다(파이썬 표준 라이브러리만 쓴다).
+
+```
+# 0) 받아오기 — 한 번만
+git clone https://github.com/Minsiklee/market-research_discovery-001.git
+cd market-research_discovery-001
+git checkout claude/trusting-goodall-exr1d3
+
+# 1) 받으신 targets_GV80.txt 를 work/ 폴더에 넣는다
+#    (또는 1차 배치 sealed 파일로 다시 만든다:
+#     python3 scripts/make_targets.py --sealed <sealed_...GV80.jsonl>)
+
+# 2) 환경 진단 — 무엇이 빠졌는지 한국어로 알려준다
+python3 scripts/recollect.py doctor
+
+# 3) 실행
+python3 scripts/recollect.py gv80
+```
+
+`doctor` 가 초록불이 될 때까지 시키는 대로 고친 다음 `gv80` 을 친다.
+`gv80` 은 수집 → 파싱 → 검증까지 알아서 이어 돈다.
+**중간에 끊겨도 같은 명령을 다시 치면 이어서 돈다** — 이미 받은 스레드는 건너뛴다.
+
+### 환경변수 두 개
+
+`doctor` 가 요구하는 것은 이 둘이다. 터미널을 새로 열면 사라지므로 그때마다 다시 친다
+(매번 치기 싫으면 macOS 는 `~/.zshrc`, Windows 는 시스템 환경변수에 넣는다).
+
+**macOS · 리눅스**
+```bash
+export REDDIT_USER_AGENT="python:genesis-research:v1.0 (by /u/본인계정)"
+export REDDIT_CLIENT_ID="..."        # 선택 — 있으면 4배 빠르다
+export REDDIT_CLIENT_SECRET="..."    # 선택
+```
+
+**Windows PowerShell**
+```powershell
+$env:REDDIT_USER_AGENT="python:genesis-research:v1.0 (by /u/본인계정)"
+$env:REDDIT_CLIENT_ID="..."
+$env:REDDIT_CLIENT_SECRET="..."
+```
+
+`REDDIT_USER_AGENT` 는 **필수**다. 레딧이 기본 User-Agent 를 차단한다.
+자격증명은 https://www.reddit.com/prefs/apps 에서 "create app" → **script** 타입으로 만든다.
+없어도 돌아가지만 분당 10회로 조여진다(GV80 20~40분 vs 5~10분).
+
+### 막히면
+
+`doctor` 나 실행 중 메시지를 **그대로 복사해서** 물어보면 된다. 흔한 것 셋.
+
+| 증상 | 원인 | 조치 |
+|---|---|---|
+| `[2] 연결 실패` | 사내망·VPN·방화벽 | 개인 네트워크에서 시도 |
+| `HTTP 403` 반복 | User-Agent 미설정 | 위 환경변수 설정 |
+| `http_429` 가 계속 | 속도 제한 | 그대로 두면 스스로 느려지며 회복한다. 자격증명을 넣으면 거의 사라진다 |
+
+---
+
 이 저장소의 세션에서는 레딧 egress가 조직 정책으로 막혀 있다.
 아래는 **네트워크가 열린 환경**(로컬 PC 등)에서 그대로 따라 하는 절차다.
 
@@ -17,7 +78,7 @@
 그래서 이번 수집기는 **원응답을 먼저 파일로 보관**한다. 규칙이 바뀌어도
 재크롤링 없이 다시 파싱하면 된다.
 
-## 1. 준비
+## 1. 준비 (자세히)
 
 ```bash
 export REDDIT_USER_AGENT="python:genesis-discourse-research:v1.0 (by /u/<계정>)"

@@ -25,7 +25,20 @@ sealed/records ─▶ ① screen.py          정규식·사전만. 점수·중�
 > 이 저장소는 **public**이다. 원문·작성자 해시·본문 발췌·내부 방법론 문서는
 > 커밋하지 않는다. 자료는 세션 로컬 또는 비공개 보관소에 둔다.
 
-## ⓪-0 reddit_fetch.py · reddit_parse.py
+## ⓪-0 recollect.py — 재수집 진입점
+
+터미널에서 이 셋만 쓰면 된다. 셸 문법을 타지 않아 OS 를 가리지 않고,
+추가 설치할 패키지가 없다(표준 라이브러리만).
+
+```
+python3 scripts/recollect.py doctor   # 환경 진단 — 빠진 것을 한국어로 알려준다
+python3 scripts/recollect.py gv80     # 수집 → 파싱 → 검증
+python3 scripts/recollect.py g70
+```
+
+절차와 환경변수는 `RUNBOOK_reddit_recollect.md` 의 «빠른 시작».
+
+## ⓪-1 reddit_fetch.py · reddit_parse.py
 
 레딧 재수집기. **API 원응답을 먼저 `sealed/raw/` 에 보관하고** 그다음 파싱한다 —
 1차 배치의 계정명·`parent_id`·URL 소실은 전부 원응답을 버려서 생겼다.
