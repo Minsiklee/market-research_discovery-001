@@ -170,12 +170,18 @@ def doctor(a):
     return 1 if bad else 0
 
 
+def fetcher(a):
+    """--source 로 수집 경로를 고른다. arctic 은 레딧이 막혔을 때의 우회로."""
+    return os.path.join(SC, "arctic_fetch.py" if getattr(a, "source", "reddit") == "arctic"
+                        else "reddit_fetch.py")
+
+
 def gv80(a):
     tg = os.path.join(ROOT, "work", "targets_GV80.txt")
     if not os.path.exists(tg):
         print("%s work/targets_GV80.txt 가 없습니다. 먼저 doctor 를 돌려보세요." % NO)
         sys.exit(1)
-    run([os.path.join(SC, "reddit_fetch.py"), "targets", "--ids", tg,
+    run([fetcher(a), "targets", "--ids", tg,
          "--raw", os.path.join("sealed", "raw", "GV80"), "--loop"],
         "1/3 원응답 수집 — 끊겨도 같은 명령으로 이어집니다")
     run([os.path.join(SC, "reddit_parse.py"), "--raw", os.path.join("sealed", "raw", "GV80"),
@@ -190,12 +196,12 @@ def g70(a):
     subs = os.path.join(ROOT, "work", "subs_G70.txt")
     if not os.path.exists(subs):
         print("%s work/subs_G70.txt 가 없습니다." % NO); sys.exit(1)
-    run([os.path.join(SC, "reddit_fetch.py"), "discover", "--subs", subs, "--query", "G70",
+    run([fetcher(a), "discover", "--subs", subs, "--query", "G70",
          "--since", SINCE, "--until", UNTIL,
          "--out", os.path.join("work", "targets_G70.txt"),
          "--log", os.path.join("work", "attempted_searches_G70.json")],
         "1/4 글 id 탐색 — G70은 URL이 없어 먼저 찾아야 합니다")
-    run([os.path.join(SC, "reddit_fetch.py"), "targets",
+    run([fetcher(a), "targets",
          "--ids", os.path.join("work", "targets_G70.txt"),
          "--raw", os.path.join("sealed", "raw", "G70"), "--loop"],
         "2/4 원응답 수집")
@@ -225,8 +231,12 @@ def probe(a):
     print("=" * 58)
     print("  이름표(User-Agent): %s" % ua)
     saved = None
-    for host in ("https://www.reddit.com", "https://old.reddit.com"):
-        url = "%s/comments/%s.json?limit=5&raw_json=1" % (host, tid)
+    targets = [("레딧", "https://www.reddit.com/comments/%s.json?limit=5&raw_json=1" % tid),
+               ("레딧", "https://old.reddit.com/comments/%s.json?limit=5&raw_json=1" % tid),
+               ("Arctic Shift",
+                "https://arctic-shift.photon-reddit.com/api/posts/ids?ids=%s" % tid)]
+    for label, url in targets:
+        print("\n  [%s]" % label, end="")
         print("\n  %s" % url)
         req = urllib.request.Request(url)
         req.add_header("User-Agent", ua)
@@ -245,7 +255,9 @@ def probe(a):
         isjson = body.strip()[:1] in (b"{", b"[")
         print("     HTTP %s | Content-Type: %s | %d바이트" % (code, ctype, len(body)))
         if isjson:
-            print("%s JSON 이 왔습니다 — 이 호스트로 수집할 수 있습니다." % OK)
+            print("%s JSON 이 왔습니다 — 이 경로로 수집할 수 있습니다." % OK)
+            if "arctic" in url:
+                print("       → 메뉴 2번을 Arctic Shift 로 돌리면 됩니다 (아래 안내 참고)")
         else:
             print("%s JSON 이 아닙니다. 받은 내용 앞부분:" % NO)
             for line in head.splitlines()[:6]:
@@ -257,6 +269,8 @@ def probe(a):
                 f.write("요청한 주소: %s\nHTTP %s\nContent-Type: %s\n\n%s\n"
                         % (url, code, ctype, body[:4000].decode("utf-8", "replace")))
     print("\n" + "=" * 58)
+    print("레딧이 막혀도 Arctic Shift 가 ✅ 면 수집할 수 있습니다:")
+    print("  py scripts\\recollect.py gv80 --source arctic")
     if saved:
         print("받은 내용을 저장했습니다: %s" % saved)
         print("이 파일을 그대로 보내 주시면 원인을 짚어 드리겠습니다.")
@@ -268,9 +282,14 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest="cmd", required=True)
     sp.add_parser("doctor", help="환경 진단 — 먼저 이것부터").set_defaults(func=doctor)
-    sp.add_parser("gv80", help="GV80 수집 → 파싱 → 검증").set_defaults(func=gv80)
-    sp.add_parser("g70", help="G70 탐색 → 수집 → 파싱 → 검증").set_defaults(func=g70)
+    p_gv80 = sp.add_parser("gv80", help="GV80 수집 → 파싱 → 검증")
+    p_gv80.set_defaults(func=gv80)
+    p_g70 = sp.add_parser("g70", help="G70 탐색 → 수집 → 파싱 → 검증")
+    p_g70.set_defaults(func=g70)
     sp.add_parser("probe", help="한 건만 받아 보고 무엇이 오는지 확인").set_defaults(func=probe)
+    for _p in (p_gv80, p_g70):
+        _p.add_argument("--source", choices=("reddit", "arctic"), default="reddit",
+                        help="reddit = 레딧 직접, arctic = Arctic Shift 아카이브")
     a = ap.parse_args()
     sys.exit(a.func(a) or 0)
 

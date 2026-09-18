@@ -33,6 +33,7 @@ MENU = """
   4)  접속 정보 입력      settings.txt 를 메모장으로 엽니다
   5)  결과 폴더 열기      work 폴더를 탐색기로 엽니다
   6)  응답 확인          한 건만 받아 보고 무엇이 오는지 봅니다
+  7)  GV80 (아카이브)     레딧이 막혔을 때. Arctic Shift 로 받습니다
 
   0)  닫기
 
@@ -110,13 +111,17 @@ def main():
             os.makedirs(w, exist_ok=True)
             open_in_explorer(w)
             pause()
+        elif pick == "7":
+            run([os.path.join(SC, "recollect.py"), "gv80", "--source", "arctic"],
+                "GV80 재수집 — Arctic Shift 아카이브")
+            pause()
         elif pick == "6":
             run([os.path.join(SC, "recollect.py"), "probe"], "레딧 응답 확인")
             pause()
         elif pick in ("0", "q", "Q", ""):
             return
         else:
-            print("\n0~6 중에서 골라 주세요.")
+            print("\n0~7 중에서 골라 주세요.")
             pause()
 
 

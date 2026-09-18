@@ -78,7 +78,9 @@ def flatten(payload):
                     "author": d.get("author"), "body": d.get("body"),
                     "created_utc": d.get("created_utc"), "edited": d.get("edited"),
                     "score": d.get("score"), "depth": depth,
-                    "permalink": d.get("permalink")})
+                    "permalink": d.get("permalink"),
+                    # 아카이브가 주는 삭제·수정 단서. 떨어뜨리면 §2 판정을 못 한다.
+                    "_meta": d.get("_meta")})
         rep = d.get("replies")
         if isinstance(rep, dict):
             for ch in (rep.get("data") or {}).get("children") or []:
@@ -135,6 +137,10 @@ def main():
         if len(post_text) < 20:
             rep["drop_length_short_post"] += 1
             continue
+        pmeta = post.get("_meta") or {}
+        if pmeta.get("was_deleted_later") or pmeta.get("removal_type"):
+            rep["drop_deleted_later"] += 1
+            continue
         full = " ".join([post_text] + [normalize(c.get("body") or "") for c in comments])
         sub = post.get("subreddit") or ""
         # 관련성 관문 — 대상 모델이 스레드 어디에도 없으면 버린다.
@@ -162,6 +168,12 @@ def main():
                 continue
             if t in ("[deleted]", "[removed]"):
                 rep["excl_deleted"] += 1
+                continue
+            meta = c.get("_meta") or {}
+            if meta.get("was_deleted_later") or meta.get("removal_type"):
+                # 아카이브에만 있는 단서다. 실시간 레딧은 [deleted] 로만 보여서
+                # 언제·왜 지워졌는지 알 수 없다. 작성자가 지운 글은 넣지 않는다.
+                rep["excl_deleted_later"] += 1
                 continue
             rows.append({"kind": "comment", "id": c["id"], "parent": c.get("parent_id"),
                          "author": c.get("author"), "text": t, "created": c.get("created_utc"),
@@ -242,7 +254,9 @@ def main():
                 "content_hash": ch, "near_dup_of": None,
                 "comment_coverage": "%d/%d" % (len(kept) - 1, post.get("num_comments") or 0)
                                     if r["kind"] == "post" else None,
-                "access_method": "api" if payload.get("auth") == "oauth" else "public_page",
+                "access_method": {"oauth": "api", "arctic_shift": "api"}.get(
+                    payload.get("auth"), "public_page"),
+                "source": payload.get("source", "reddit_live"),
                 "collected_at": payload.get("fetched_at"),
                 "schema_version": SCHEMA_VERSION,
             })
@@ -305,7 +319,11 @@ def main():
                         "lang_conf(영어 가정 고정값)", "attrs_prefill(코딩 단계에서 채운다)",
                         "minor_flag·official_source_flag(발주자 계정 목록 미수령)"],
         "access_method_counts": dict(collections.Counter(r["access_method"] for r in records)),
-        "access_note": "레딧 공개 API. 원응답을 sealed/raw 에 보관한다 — 재파싱 가능",
+        "access_note": "원응답을 sealed/raw 에 보관한다 — 재파싱 가능",
+        "source_counts": dict(collections.Counter(r.get("source") for r in records)),
+        "source_note": ("Arctic Shift 는 게시 후 36시간 시점의 스냅샷이다. "
+                        "그 뒤의 수정은 _meta.is_edited 로만 알 수 있고, "
+                        "비공개·격리 서브레딧은 들어 있지 않다."),
         "parse_rule_version": RULE_VERSION,
         "cleansed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "checksums": {"records": hashlib.sha256(open(rp, "rb").read()).hexdigest(),
